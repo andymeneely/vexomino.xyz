@@ -16,8 +16,50 @@
 # ===============================================================
 
 # Remove the x from xrepl to run the code. Add the x back to ignore to code.
-xrepl do
-  puts "The result of 1 + 2 is: #{1 + 2}"
+
+repl do
+  3.times do
+  grid = [
+    [:empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty, ],
+    [:empty,  :filled, :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty, ],
+    [:empty,  :empty,  :filled, :empty,  :empty,  :empty,  :empty,  :empty,  :empty, ],
+    [:filled, :filled, :filled, :empty,  :empty,  :empty,  :empty,  :empty,  :empty, ],
+    [:empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty, ],
+    [:empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty, ],
+    [:empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty, ],
+    [:empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty, ],
+    [:empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty, ],
+  ]
+
+  puts grid.map { |row| row.map {|v| v == :filled ? "X" : '-'}.join.concat("\n")}.join
+
+  # new_grid = Array.new(9, Array.new(9, :empty))
+  new_grid = []
+  grid.each.with_index do |row, r|
+    new_row = []
+    row.each.with_index do |v, c|
+      n = 0
+      n+=1 if grid[(r + 1) % 9][(c + 1) % 9] == :filled
+      n+=1 if grid[(r + 1) % 9][(c + 0) % 9] == :filled
+      n+=1 if grid[(r + 1) % 9][(c - 1) % 9] == :filled
+
+      n+=1 if grid[(r - 1) % 9][(c + 1) % 9] == :filled
+      n+=1 if grid[(r - 1) % 9][(c + 0) % 9] == :filled
+      n+=1 if grid[(r - 1) % 9][(c - 1) % 9] == :filled
+
+      n+=1 if grid[(r + 0) % 9][(c - 1) % 9] == :filled
+      n+=1 if grid[(r + 0) % 9][(c + 1) % 9] == :filled
+
+      new_val = v
+      new_val = :empty if v == :filled && (n == 2 || n == 3)
+      new_val = :filled if v == :empty && n == 3
+      new_row << new_val
+    end
+    new_grid << new_row
+  end
+  puts "============="
+  puts new_grid.map { |row| row.map {|v| v == :filled ? "X" : '-'}.join.concat("\n")}.join
+end
 end
 
 # ====================================================================================

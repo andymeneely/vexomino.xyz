@@ -1,7 +1,7 @@
 devid=andymeneely
 devtitle=Andy Meneely
 gameid=vexomino
-gametitle=My Game
+gametitle=Vexomino
 version=0.1
 icon=metadata/icon.png
 

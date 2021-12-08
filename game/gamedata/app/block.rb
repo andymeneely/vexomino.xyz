@@ -1,4 +1,5 @@
 require 'app/constants.rb'
+
 class Block
   attr_accessor :x, :y
   attr_reader :coords
@@ -6,7 +7,7 @@ class Block
   def initialize(args, i)
     @args = args
     @x = DRAWER_X
-    @y = DRAWER_Y + i * (BLOCK_SIZE * 1.25) 
+    @y = DRAWER_Y + i * (BLOCK_SIZE * 1.25)
     @drawer_x = @x
     @drawer_y = @y
     another_one!
@@ -17,14 +18,13 @@ class Block
   end
 
   def rect
-    # [@x, @y, BLOCK_SIZE, BLOCK_SIZE]
     rows = @coords.map {|(r,_c)| r }
     cols = @coords.map {|(_r,c)| c }
     return [
-      @x + cols.min * CELL_SIZE, 
-      @y + rows.min * CELL_SIZE, 
-      (cols.max - cols.min + 1) * CELL_SIZE, 
-      (rows.max - rows.min + 1) * CELL_SIZE
+      @x + cols.min * CELL_SIZE - GAP,
+      @y + rows.min * CELL_SIZE - GAP,
+      (cols.max - cols.min + 1) * CELL_SIZE + GAP,
+      (rows.max - rows.min + 1) * CELL_SIZE + GAP
     ]
   end
 
@@ -34,25 +34,26 @@ class Block
   end
 
   def render
-    begin 
     coords.each do | (r,c) |
+      dragging = :dragging
+      shrink = 3*GAP
+      if (@x == @drawer_x && @y == @drawer_y)
+        shrink = 0
+        dragging = :filled
+      end
+
       @args.outputs.solids << {
-        x: @x + c * (SQUARE_SIZE + GAP),
-        y: @y + r * (SQUARE_SIZE + GAP),
-        w: SQUARE_SIZE,
-        h: SQUARE_SIZE,
-        r: 20,
-        g: 20,
-        b: 255
+        x: @x + c * (SQUARE_SIZE + GAP) + shrink,
+        y: @y + r * (SQUARE_SIZE + GAP) + shrink,
+        w: SQUARE_SIZE - 2 * shrink,
+        h: SQUARE_SIZE - 2 * shrink,
+        r: PALLETE[dragging][0],
+        g: PALLETE[dragging][1],
+        b: PALLETE[dragging][2]
       }
-      
     end
-    
-    @args.outputs.borders << rect
-  rescue => e
-    puts e.message
-    puts "#{@x} #{@y} #{coords}" 
-  end
+
+    # @args.outputs.borders << rect
   end
 
   def corners
@@ -68,7 +69,7 @@ class Block
     [
       (y - GRID_START_Y).idiv(CELL_SIZE),
       (x - GRID_START_X).idiv(CELL_SIZE),
-    ]  
+    ]
   end
 
   def serialize
@@ -78,7 +79,7 @@ class Block
   def inspect
     serialize.to_s
   end
-  
+
   def to_s
     serialize.to_s
   end

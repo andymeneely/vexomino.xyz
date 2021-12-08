@@ -1,5 +1,5 @@
 var GDragonRubyGameId = 'vexomino';
-var GDragonRubyGameTitle = 'My Game';
+var GDragonRubyGameTitle = 'Vexomino';
 var GDragonRubyDevTitle = 'Andy Meneely';
 var GDragonRubyGameVersion = '0.1';
 var GDragonRubyIcon = '/metadata/icon.png';
