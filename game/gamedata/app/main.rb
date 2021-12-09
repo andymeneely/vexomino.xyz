@@ -106,14 +106,14 @@ class Game
           i.mouse.position.inside_rect?(b.rect)
         end
         if s.grabbed_block
-          s.mouse_offset_x = i.mouse.x - s.grabbed_block.x
-          s.mouse_offset_y = i.mouse.y - s.grabbed_block.y
+          s.mouse_offset_x = pointer_x - s.grabbed_block.x
+          s.mouse_offset_y = pointer_y - s.grabbed_block.y
         end
       end
     else # block is already grabbed
       if click_or_tap?
-        s.grabbed_block.x = i.mouse.x - s.mouse_offset_x
-        s.grabbed_block.y = i.mouse.y - s.mouse_offset_y
+        s.grabbed_block.x = pointer_x - s.mouse_offset_x
+        s.grabbed_block.y = pointer_y - s.mouse_offset_y
       else
         if s.can_drop
           s.can_drop = false
@@ -128,11 +128,31 @@ class Game
     @args.gtk.reset if i.keyboard.r
     s.conway_mode = true if i.keyboard.l
 
+    s.conway_mode = false if !i.finger_one.nil?
+
   end
 
   def click_or_tap?
     i.mouse.button_left || i.finger_one != nil
   end
+
+  # "pointer" is either finger_one or mouse pointer
+  def pointer_x
+    if i.finger_one.nil?
+      i.mouse.x
+    else
+      i.finger_one.x
+    end
+  end
+
+  def pointer_y
+    if i.finger_one.nil?
+      i.mouse.y
+    else
+      i.finger_one.y
+    end
+  end
+
 
   def calc
 
