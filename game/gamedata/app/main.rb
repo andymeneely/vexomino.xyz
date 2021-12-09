@@ -61,9 +61,17 @@ class Game
     s.can_drop       ||= false
     s.conway_mode    ||= false
     s.mode_title     ||= ""
+    s.score          ||= 0
+    s.done           ||= false
   end
 
   def render
+
+    if s.score > CELL_SIZE * 9
+      s.done = true
+      o.background_color = [255, 0, 0]
+      return
+    end
 
     o.sprites << {
       x: 0,
@@ -94,6 +102,26 @@ class Game
       text: s.mode_title,
       r: 0, g: 0, b: 0,
       size_enum: 6
+    }
+
+    o.borders << {
+      x: GRID_START_X,
+      y: 600,
+      w: 9 * CELL_SIZE,
+      h: 10,
+      r: 20,
+      g: 20,
+      b: 255
+    }
+
+    o.solids << {
+      x: GRID_START_X,
+      y: 600,
+      w: s.score,
+      h: 10,
+      r: 20,
+      g: 20,
+      b: 255
     }
 
     s.block_drawer.each { |b| b.render }
@@ -179,6 +207,7 @@ class Game
       if s.dropping # actually drop the piece!
         drop_cell_rcs.each { |(r,c)| s.grid[r][c] = :filled }
         s.dropping = false
+        s.score += s.grabbed_block.score
         s.grabbed_block.let_go!
         s.grabbed_block.another_one!
         s.grabbed_block = nil
@@ -187,6 +216,8 @@ class Game
 
     s.grid.each.with_index do |row, i|
       if (row.all? { |cell| cell == :filled })
+        # yay! row filled
+        s.core += 20
         s.grid[i] = Array.new(9, :empty)
       end
     end

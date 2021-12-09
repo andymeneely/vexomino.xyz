@@ -33,6 +33,10 @@ class Block
     @y = @drawer_y
   end
 
+  def score
+    @coords.size * @coords.size * 5
+  end
+
   def render
     coords.each do | (r,c) |
       dragging = :dragging
