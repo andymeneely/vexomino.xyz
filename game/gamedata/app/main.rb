@@ -35,6 +35,18 @@ class Game
   def tick_zero
     if s.tick_count == 0
       @args.gtk.reset_sprite 'sprites/backdrop.png'
+      build_str = "build %04d" % @args.gtk.read_file("data/build.txt").to_i
+
+      o.static_labels << {
+        x: 1220,
+        y: 15,
+        w: 100,
+        text: build_str,
+        r: 150,
+        g: 150,
+        b: 150,
+        size_enum: -5
+      }
     end
   end
 
@@ -52,6 +64,7 @@ class Game
   end
 
   def render
+
     o.sprites << {
       x: 0,
       y: 0,
