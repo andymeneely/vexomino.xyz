@@ -39,7 +39,7 @@ class Block
 
   def render
     coords.each do | (r,c) |
-      dragging = :dragging
+      dragging = :scorable
       shrink = 3*GAP
       if (@x == @drawer_x && @y == @drawer_y)
         shrink = 0
@@ -51,9 +51,9 @@ class Block
         y: @y + r * (SQUARE_SIZE + GAP) + shrink,
         w: SQUARE_SIZE - 2 * shrink,
         h: SQUARE_SIZE - 2 * shrink,
-        r: PALLETE[dragging][0],
-        g: PALLETE[dragging][1],
-        b: PALLETE[dragging][2]
+        r: @args.state.pallete[dragging][0],
+        g: @args.state.pallete[dragging][1],
+        b: @args.state.pallete[dragging][2]
       }
     end
 

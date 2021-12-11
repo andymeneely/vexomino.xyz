@@ -62,16 +62,19 @@ class Game
     s.conway_mode    ||= false
     s.mode_title     ||= ""
     s.score          ||= 0
+    s.pre_score      ||= 0
     s.done           ||= false
+    s.pallete        ||= DEFAULT_PALLETE
+    s.max_score      ||= 1000.0
+    s.flash_message  ||= nil
   end
 
   def render
 
-    if s.score > CELL_SIZE * 9
-      s.done = true
-      o.background_color = [255, 0, 0]
-      return
-    end
+    # if !s.done && s.score > CELL_SIZE * 9 
+    #   s.done = true
+    #   s.conway_mode = true
+    # end
 
     o.sprites << {
       x: 0,
@@ -81,13 +84,13 @@ class Game
       path: 'sprites/backdrop.png'
     }
 
-    s.grid.map_2d do |r,c,_v|
+    s.grid.map_2d do |r,c,v|
       o.solids << ([
         c * (SQUARE_SIZE + GAP) + GRID_START_X,
         r * (SQUARE_SIZE + GAP) + GRID_START_Y,
         SQUARE_SIZE,
         SQUARE_SIZE,
-        ] + PALLETE[s.grid[r][c]])
+        ] + s.pallete[v])
     end
 
     o.labels << {
@@ -104,27 +107,31 @@ class Game
       size_enum: 6
     }
 
-    o.borders << {
-      x: GRID_START_X,
-      y: 600,
-      w: 9 * CELL_SIZE,
-      h: 10,
-      r: 20,
-      g: 20,
-      b: 255
-    }
+    o.borders << PROGRESS_RECT + s.pallete[:filled]
 
-    o.solids << {
-      x: GRID_START_X,
-      y: 600,
-      w: s.score,
-      h: 10,
-      r: 20,
-      g: 20,
-      b: 255
-    }
+    o.solids << [
+      GRID_START_X,
+      600,
+      score_to_progress(s.score),
+      10,
+    ] + s.pallete[:filled]
+    
 
+    o.solids << [
+      GRID_START_X + score_to_progress(s.score),
+      600,
+      score_to_progress(s.pre_score),
+      10,
+    ] + s.pallete[:scorable]
+      
     s.block_drawer.each { |b| b.render }
+
+    # unless s.flash_message.nil?
+    #   o.labels << s.flash_message
+    #   s.flash_message[7] -= FLASH_FADE
+    #   s.flash_message = nil if s.flash_message[7] < 0
+    # end
+    
   end
 
   def input
@@ -153,10 +160,15 @@ class Game
       end
     end
 
-    @args.gtk.reset if i.keyboard.r
+    $gtk.reset if i.keyboard.r
     s.conway_mode = true if i.keyboard.l
 
     s.conway_mode = false if !i.finger_one.nil?
+    s.pallete = PALLETES[:boring] if i.keyboard.c
+    s.pallete = PALLETES[:forest] if i.keyboard.f
+    s.pallete = PALLETES[:flame] if i.keyboard.g
+    s.pallete = PALLETES[:charcoal] if i.keyboard.h
+    s.pallete = PALLETES[:purple] if i.keyboard.k 
 
   end
 
@@ -183,9 +195,10 @@ class Game
 
 
   def calc
-
-    # Clear out any overlaps
+    # Clear out any overlaps to recalculate
     s.grid = s.grid.map {|row| row.map {|v| v == :overlap ? :empty : v }}
+    s.grid = s.grid.map {|row| row.map {|v| v == :scorable ? :filled : v }}
+    s.pre_score = 0
 
     if s.grabbed_block&.rect&.inside_rect?(SHADOW_START_RECT)
       (off_r, off_c) = find_cell_grid_overlap
@@ -202,28 +215,92 @@ class Game
         drop_cell_rcs.each do |(r,c)|
           s.grid[r][c] = :overlap
         end
+        s.pre_score += s.grabbed_block.score
       end
 
       if s.dropping # actually drop the piece!
         drop_cell_rcs.each { |(r,c)| s.grid[r][c] = :filled }
         s.dropping = false
         s.score += s.grabbed_block.score
+        s.pre_score = 0
         s.grabbed_block.let_go!
         s.grabbed_block.another_one!
         s.grabbed_block = nil
       end
+      check_scorable
     end
 
-    s.grid.each.with_index do |row, i|
-      if (row.all? { |cell| cell == :filled })
-        # yay! row filled
-        s.core += 20
-        s.grid[i] = Array.new(9, :empty)
+    clear_and_score
+    attempt_conway(s)
+  end
+
+  def clear_and_score
+    any_score = s.grid.any? { |row| row.any? { |v| v == :scorable } } && 
+                s.grabbed_block.nil?
+    if any_score
+      each_rc do |r, c|
+        s.grid[r][c] = :empty if s.grid[r][c] == :scorable
+      end
+      s.score += s.pre_score
+      s.pre_score = 0
+    end 
+  end
+
+  # Iterate over rows and cols and check for full
+  # If they are full, 
+  def check_scorable
+    
+    s.grid.each.with_index do |row, i| 
+      row_scorable = row.all? { |v| v == :filled || v == :scorable || v == :overlap}
+      if row_scorable # yay! row filled
+        s.grid[i] = s.grid[i].map { |v| v == :filled ? :scorable : v }
+        s.pre_score += 20
+        flash "+20"
       end
     end
 
-    attempt_conway(s)
+    0.upto(8).each do |c|  
+      col_filled = 0.upto(8).all? do |r| 
+        s.grid[r][c] == :filled || s.grid[r][c] == :scorable || s.grid[r][c] == :overlap
+      end
+      if col_filled # yay! col filled
+        0.upto(8).each do |r| 
+          s.grid[r][c] = :scorable if s.grid[r][c] == :filled
+        end
+        s.pre_score += 20
+        flash "+20"
+      end
+    end
+
+    # each 3x3 "cage"
+    [0, 3, 6].each do |cage_r|
+      [0, 3, 6].each do |cage_c|
+        
+        cage_scorable = true
+        (cage_r..cage_r + 2).each do |r|
+          (cage_c..cage_c + 2).each do |c|
+            v = s.grid[r][c]
+            cage_scorable &&= (v == :filled || v == :scorable || v == :overlap)
+          end
+        end
+
+        if cage_scorable 
+          (cage_r..cage_r + 2).each do |r|
+            (cage_c..cage_c + 2).each do |c|
+              s.grid[r][c] = :scorable if s.grid[r][c] == :filled
+            end
+          end
+          s.pre_score += 20
+          flash "+20"
+        end
+
+      end
+    end
+
+    compliment_them(s.pre_score)
+
   end
+    
 
   def find_cell_grid_overlap
     x = s.grabbed_block.x
@@ -281,6 +358,54 @@ class Game
       (p[1] - GRID_START_Y).idiv(CELL_SIZE),
       (p[0] - GRID_START_X).idiv(CELL_SIZE),
     ]
+  end
+
+  def each_rc(&block)
+    0.upto(8).each do |r|
+      0.upto(8).each do |c|
+        block.yield(r, c)
+      end
+    end
+  end
+
+  def score_to_progress(i)
+    (PROGRESS_RECT[2].to_f * i / s.max_score).clamp(0, PROGRESS_RECT[2])
+  end
+
+  def  flash(message)
+    s.flash_message = [
+      400,
+      400, 
+      message,
+      8, # size
+      30,
+      30,
+      30,
+      255
+    ] if s.flash_message.nil?
+  end
+
+  def compliment_them(pre_score)
+    case pre_score
+    when 1..20
+      flash [
+        "Nice!",
+        "Good job!",
+        "Cleared!",
+      ].sample
+    when 21..40
+      flash [
+        "Boom.",
+        "Excellent!",
+        "Sweet!",  
+        "Awesome!",
+      ].sample
+    when 41..1000
+      flash [
+        "Kapow!",
+        "Bazinga!",
+      ].sample
+    end
   end
 
 end
