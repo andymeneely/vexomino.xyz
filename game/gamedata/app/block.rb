@@ -34,7 +34,7 @@ class Block
   end
 
   def score
-    @coords.size * @coords.size * 5
+    @coords.size * @coords.size
   end
 
   def render

@@ -21,6 +21,5 @@ def attempt_conway(s)
       end
     end
     s.grid = new_grid
-    s.mode_title = "Conway Mode"
   end
 end

@@ -34,8 +34,15 @@ class Game
 
   def tick_zero
     if s.tick_count == 0
-      @args.gtk.reset_sprite 'sprites/backdrop.png'
       build_str = "build %04d" % @args.gtk.read_file("data/build.txt").to_i
+
+      # o.static_borders << GRID_RECT
+      # o.static_borders << [
+      #   GRID_RECT[0]-1,
+      #   GRID_RECT[1]-1,
+      #   GRID_RECT[2]+2,
+      #   GRID_RECT[3]+2,
+      # ]
 
       o.static_labels << {
         x: 1220,
@@ -65,24 +72,16 @@ class Game
     s.pre_score      ||= 0
     s.done           ||= false
     s.pallete        ||= DEFAULT_PALLETE
-    s.max_score      ||= 1000.0
+    s.max_score      ||= MAX_SCORE_DEFAULT
     s.flash_message  ||= nil
   end
 
   def render
 
-    # if !s.done && s.score > CELL_SIZE * 9 
+    # if !s.done && s.score > CELL_SIZE * 9
     #   s.done = true
     #   s.conway_mode = true
     # end
-
-    o.sprites << {
-      x: 0,
-      y: 0,
-      w: 1280,
-      h: 720,
-      path: 'sprites/backdrop.png'
-    }
 
     s.grid.map_2d do |r,c,v|
       o.solids << ([
@@ -93,45 +92,57 @@ class Game
         ] + s.pallete[v])
     end
 
-    o.labels << {
-      x: 0, y: 700,
-      text: s.debug,
-      r: 0, g: 0, b: 0,
-      size_enum: 10
-    }
+    # Render the empties AGAIN but alternate cages
+    # For cage darkening effect
+    [[0,3], [3,0], [3,6], [6,3]].each do |(cage_r, cage_c)|
+      (cage_r..cage_r+2).each do |r|
+        (cage_c..cage_c+2).each do |c|
+          if s.grid[r][c] == :empty
+            o.solids << ({
+              x: c * (SQUARE_SIZE + GAP) + GRID_START_X,
+              y: r * (SQUARE_SIZE + GAP) + GRID_START_Y,
+              w: SQUARE_SIZE,
+              h: SQUARE_SIZE,
+              r: 25,
+              g: 25,
+              b: 25,
+              a: 75,
+            })
+          end
+        end
+      end
+    end
 
-    o.labels << {
-      x: 1100, y: 720,
-      text: s.mode_title,
-      r: 0, g: 0, b: 0,
-      size_enum: 6
-    }
+    # [X,Y,TEXT,SIZE,ALIGN,RED,GREEN,BLUE,ALPHA,FONT STYLE]
+    o.labels << [1100, 720, s.mode_title, 6, 0, 0, 0, 0]
+    o.labels << [0, 720, s.debug, 5, 0, 0, 0, 0]
+    # o.labels << [0, 50, "%.01f" % $gtk.current_framerate, 2, 0, 0, 0, 0]
 
     o.borders << PROGRESS_RECT + s.pallete[:filled]
-
     o.solids << [
-      GRID_START_X,
-      600,
-      score_to_progress(s.score),
-      10,
+      PROGRESS_RECT.x, PROGRESS_RECT.y,
+      score_to_progress(s.score), PROGRESS_RECT.h,
     ] + s.pallete[:filled]
-    
+    pre_score_x = PROGRESS_RECT.x + score_to_progress(s.score)
+    o.solids << {
+      x: pre_score_x,
+      y: PROGRESS_RECT.y,
+      w: score_to_progress(s.pre_score).clamp(0, PROGRESS_RECT.w + PROGRESS_RECT.x - pre_score_x),
+      h: PROGRESS_RECT.h,
+      r: s.pallete[:scorable][0],
+      g: s.pallete[:scorable][1],
+      b: s.pallete[:scorable][2]
+    }
 
-    o.solids << [
-      GRID_START_X + score_to_progress(s.score),
-      600,
-      score_to_progress(s.pre_score),
-      10,
-    ] + s.pallete[:scorable]
-      
     s.block_drawer.each { |b| b.render }
+
 
     # unless s.flash_message.nil?
     #   o.labels << s.flash_message
     #   s.flash_message[7] -= FLASH_FADE
     #   s.flash_message = nil if s.flash_message[7] < 0
     # end
-    
+
   end
 
   def input
@@ -162,13 +173,13 @@ class Game
 
     $gtk.reset if i.keyboard.r
     s.conway_mode = true if i.keyboard.l
+    s.conway_mode = false if i.keyboard.l && i.keyboard.shift
 
-    s.conway_mode = false if !i.finger_one.nil?
     s.pallete = PALLETES[:boring] if i.keyboard.c
     s.pallete = PALLETES[:forest] if i.keyboard.f
     s.pallete = PALLETES[:flame] if i.keyboard.g
     s.pallete = PALLETES[:charcoal] if i.keyboard.h
-    s.pallete = PALLETES[:purple] if i.keyboard.k 
+    s.pallete = PALLETES[:purple] if i.keyboard.k
 
   end
 
@@ -228,14 +239,21 @@ class Game
         s.grabbed_block = nil
       end
       check_scorable
+
+      level_up if s.score >= s.max_score
+
     end
 
     clear_and_score
     attempt_conway(s)
+    s.mode_title = ""
+    s.mode_title = "Conway Mode" if s.conway_mode
+
+    s.score = 950 if i.keyboard.p
   end
 
   def clear_and_score
-    any_score = s.grid.any? { |row| row.any? { |v| v == :scorable } } && 
+    any_score = s.grid.any? { |row| row.any? { |v| v == :scorable } } &&
                 s.grabbed_block.nil?
     if any_score
       each_rc do |r, c|
@@ -243,14 +261,14 @@ class Game
       end
       s.score += s.pre_score
       s.pre_score = 0
-    end 
+    end
   end
 
   # Iterate over rows and cols and check for full
-  # If they are full, 
+  # If they are full,
   def check_scorable
-    
-    s.grid.each.with_index do |row, i| 
+
+    s.grid.each.with_index do |row, i|
       row_scorable = row.all? { |v| v == :filled || v == :scorable || v == :overlap}
       if row_scorable # yay! row filled
         s.grid[i] = s.grid[i].map { |v| v == :filled ? :scorable : v }
@@ -259,12 +277,12 @@ class Game
       end
     end
 
-    0.upto(8).each do |c|  
-      col_filled = 0.upto(8).all? do |r| 
+    0.upto(8).each do |c|
+      col_filled = 0.upto(8).all? do |r|
         s.grid[r][c] == :filled || s.grid[r][c] == :scorable || s.grid[r][c] == :overlap
       end
       if col_filled # yay! col filled
-        0.upto(8).each do |r| 
+        0.upto(8).each do |r|
           s.grid[r][c] = :scorable if s.grid[r][c] == :filled
         end
         s.pre_score += 20
@@ -275,7 +293,7 @@ class Game
     # each 3x3 "cage"
     [0, 3, 6].each do |cage_r|
       [0, 3, 6].each do |cage_c|
-        
+
         cage_scorable = true
         (cage_r..cage_r + 2).each do |r|
           (cage_c..cage_c + 2).each do |c|
@@ -284,7 +302,7 @@ class Game
           end
         end
 
-        if cage_scorable 
+        if cage_scorable
           (cage_r..cage_r + 2).each do |r|
             (cage_c..cage_c + 2).each do |c|
               s.grid[r][c] = :scorable if s.grid[r][c] == :filled
@@ -300,7 +318,7 @@ class Game
     compliment_them(s.pre_score)
 
   end
-    
+
 
   def find_cell_grid_overlap
     x = s.grabbed_block.x
@@ -375,7 +393,7 @@ class Game
   def  flash(message)
     s.flash_message = [
       400,
-      400, 
+      400,
       message,
       8, # size
       30,
@@ -397,7 +415,7 @@ class Game
       flash [
         "Boom.",
         "Excellent!",
-        "Sweet!",  
+        "Sweet!",
         "Awesome!",
       ].sample
     when 41..1000
@@ -406,6 +424,10 @@ class Game
         "Bazinga!",
       ].sample
     end
+  end
+
+  def level_up
+    s.max_score *= 2.5
   end
 
 end
