@@ -1,7 +1,7 @@
 require 'app/constants.rb'
 
 class Block
-  attr_accessor :x, :y
+  attr_accessor :x, :y, :blank
   attr_reader :coords
 
   def initialize(args, i)
@@ -10,11 +10,14 @@ class Block
     @y = DRAWER_Y + i * (BLOCK_SIZE * 1.25)
     @drawer_x = @x
     @drawer_y = @y
+    @blank = false
     another_one!
   end
 
   def another_one!
     @coords = PIECE_COORDS.sample
+    @blank = false
+    @birthday = @args.tick_count
   end
 
   def rect
@@ -53,11 +56,23 @@ class Block
         h: SQUARE_SIZE - 2 * shrink,
         r: @args.state.pallete[dragging][0],
         g: @args.state.pallete[dragging][1],
-        b: @args.state.pallete[dragging][2]
+        b: @args.state.pallete[dragging][2],
+        a: eased_alpha
       }
     end
 
-    # @args.outputs.borders << rect
+    # @args.outputs.debug << rect.border
+  end
+
+  def eased_alpha
+    255.0 * @args.easing.ease(@birthday,
+                            @args.tick_count,
+                            BLOCK_BIRTHDAY_FADE,
+                            :identity)
+  end
+
+  def blank?
+    @blank
   end
 
   def corners

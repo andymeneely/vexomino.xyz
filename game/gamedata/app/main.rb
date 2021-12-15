@@ -1,11 +1,26 @@
 require 'app/block.rb'
 require 'app/constants.rb'
 require 'app/conway.rb'
+require 'app/drawer_classic.rb'
+require 'app/drawer_zen.rb'
+require 'app/menu.rb'
+
+class Array
+  def widen(t)
+    new_self = Array.new(self)
+    new_self.x -= t
+    new_self.y -= t
+    new_self.w += 2 * t
+    new_self.h += 2 * t
+    return new_self
+  end
+end
 
 class Game
 
   def initialize(args)
     @args = args
+    @menu = Menu.new(args, )
   end
 
   def s
@@ -34,15 +49,11 @@ class Game
 
   def tick_zero
     if s.tick_count == 0
+      s.grid = nil if s.grid.is_a? GTK::OpenEntity # fix weird reset bug
       build_str = "build %04d" % @args.gtk.read_file("data/build.txt").to_i
 
-      # o.static_borders << GRID_RECT
-      # o.static_borders << [
-      #   GRID_RECT[0]-1,
-      #   GRID_RECT[1]-1,
-      #   GRID_RECT[2]+2,
-      #   GRID_RECT[3]+2,
-      # ]
+      o.static_borders << GRID_RECT
+      o.static_borders << GRID_RECT.widen(1)
 
       o.static_labels << {
         x: 1220,
@@ -54,34 +65,45 @@ class Game
         b: 150,
         size_enum: -5
       }
+
     end
   end
 
   def defaults
     s.grid           ||= Array.new(9) { |_i| Array.new(9, :empty) }
-    s.block_drawer   ||= Array.new(3) { |i| Block.new(@args, i) }
+    s.block_drawer   ||= DrawerClassic.new(@args)
     s.grabbed_block  ||= nil
-    s.debug          ||= nil
+    s.debug_str      ||= nil
     s.mouse_offset_x ||= 0
     s.mouse_offset_y ||= 0
     s.dropping       ||= false
     s.can_drop       ||= false
     s.conway_mode    ||= false
-    s.mode_title     ||= ""
+    s.mode           ||= :classic
+    s.mode_changing  ||= false
     s.score          ||= 0
     s.pre_score      ||= 0
-    s.done           ||= false
     s.pallete        ||= DEFAULT_PALLETE
     s.max_score      ||= MAX_SCORE_DEFAULT
     s.flash_message  ||= nil
+    s.undoing        ||= false
+    s.undo_stack     ||= []
   end
 
   def render
 
-    # if !s.done && s.score > CELL_SIZE * 9
-    #   s.done = true
-    #   s.conway_mode = true
-    # end
+    @menu.render
+
+    # dark grey lines
+    # o.solids << [
+    #   GRID_RECT.x-1,
+    #   GRID_RECT.y-2,
+    #   GRID_RECT.w+2,
+    #   GRID_RECT.h+2,
+    #   s.pallete[:overlap][0],
+    #   s.pallete[:overlap][1],
+    #   s.pallete[:overlap][2],
+    # ]
 
     s.grid.map_2d do |r,c,v|
       o.solids << ([
@@ -113,28 +135,13 @@ class Game
       end
     end
 
+    s.block_drawer.render
+
+
     # [X,Y,TEXT,SIZE,ALIGN,RED,GREEN,BLUE,ALPHA,FONT STYLE]
-    o.labels << [1100, 720, s.mode_title, 6, 0, 0, 0, 0]
-    o.labels << [0, 720, s.debug, 5, 0, 0, 0, 0]
+    o.labels << [0, 720, s.debug_str, 5, 0, 0, 0, 0]
     # o.labels << [0, 50, "%.01f" % $gtk.current_framerate, 2, 0, 0, 0, 0]
 
-    o.borders << PROGRESS_RECT + s.pallete[:filled]
-    o.solids << [
-      PROGRESS_RECT.x, PROGRESS_RECT.y,
-      score_to_progress(s.score), PROGRESS_RECT.h,
-    ] + s.pallete[:filled]
-    pre_score_x = PROGRESS_RECT.x + score_to_progress(s.score)
-    o.solids << {
-      x: pre_score_x,
-      y: PROGRESS_RECT.y,
-      w: score_to_progress(s.pre_score).clamp(0, PROGRESS_RECT.w + PROGRESS_RECT.x - pre_score_x),
-      h: PROGRESS_RECT.h,
-      r: s.pallete[:scorable][0],
-      g: s.pallete[:scorable][1],
-      b: s.pallete[:scorable][2]
-    }
-
-    s.block_drawer.each { |b| b.render }
 
 
     # unless s.flash_message.nil?
@@ -148,9 +155,7 @@ class Game
   def input
     if s.grabbed_block.nil?
       if click_or_tap?
-        s.grabbed_block = s.block_drawer.find do |b|
-          i.mouse.position.inside_rect?(b.rect)
-        end
+        s.grabbed_block = s.block_drawer.find_grabbed
         if s.grabbed_block
           s.mouse_offset_x = pointer_x - s.grabbed_block.x
           s.mouse_offset_y = pointer_y - s.grabbed_block.y
@@ -175,12 +180,15 @@ class Game
     s.conway_mode = true if i.keyboard.l
     s.conway_mode = false if i.keyboard.l && i.keyboard.shift
 
-    s.pallete = PALLETES[:boring] if i.keyboard.c
+    s.pallete = PALLETES[:boring] if i.keyboard.j
     s.pallete = PALLETES[:forest] if i.keyboard.f
     s.pallete = PALLETES[:flame] if i.keyboard.g
     s.pallete = PALLETES[:charcoal] if i.keyboard.h
     s.pallete = PALLETES[:purple] if i.keyboard.k
+    s.debug_str = "#{i.mouse.x}, #{i.mouse.y}" if i.keyboard.x
 
+    @menu.input
+    s.block_drawer.input
   end
 
   def click_or_tap?
@@ -212,44 +220,61 @@ class Game
     s.pre_score = 0
 
     if s.grabbed_block&.rect&.inside_rect?(SHADOW_START_RECT)
-      (off_r, off_c) = find_cell_grid_overlap
+      drag_block
+    end
 
-      drop_cell_rcs = s.grabbed_block.coords.map do |(r,c)|
-        [off_r + r, off_c + c]
+    if s.mode_changing # we JUST clicked mode change, so trigger this once
+      s.block_drawer = case s.mode
+      when :classic
+        DrawerClassic.new(@args)
+      when :zen
+        DrawerZen.new(@args)
+      when :journey # for now
+        DrawerClassic.new(@args)
+      when :puzzle # for now
+        DrawerClassic.new(@args)
       end
-
-      s.can_drop = drop_cell_rcs.all? do |(r,c)|
-        s.grid.at(r)&.at(c) == :empty
-      end
-
-      if s.can_drop
-        drop_cell_rcs.each do |(r,c)|
-          s.grid[r][c] = :overlap
-        end
-        s.pre_score += s.grabbed_block.score
-      end
-
-      if s.dropping # actually drop the piece!
-        drop_cell_rcs.each { |(r,c)| s.grid[r][c] = :filled }
-        s.dropping = false
-        s.score += s.grabbed_block.score
-        s.pre_score = 0
-        s.grabbed_block.let_go!
-        s.grabbed_block.another_one!
-        s.grabbed_block = nil
-      end
-      check_scorable
-
-      level_up if s.score >= s.max_score
-
+      s.mode_changing = false
     end
 
     clear_and_score
     attempt_conway(s)
-    s.mode_title = ""
-    s.mode_title = "Conway Mode" if s.conway_mode
+    undo! if s.undoing
 
-    s.score = 950 if i.keyboard.p
+  end
+
+  def drag_block
+    (off_r, off_c) = find_cell_grid_overlap
+
+    drop_cell_rcs = s.grabbed_block.coords.map do |(r,c)| # determine where we drop
+      [off_r + r, off_c + c]
+    end
+
+    s.can_drop = drop_cell_rcs.all? do |(r,c)|
+      s.grid.at(r)&.at(c) == :empty
+    end
+
+    if s.can_drop
+      drop_cell_rcs.each do |(r,c)|
+        s.grid[r][c] = :overlap
+      end
+      s.pre_score += s.grabbed_block.score
+    end
+
+    if s.dropping # actually drop the piece!
+      # s.undo_stack.push(s) # not supported yet
+      drop_cell_rcs.each { |(r,c)| s.grid[r][c] = :filled }
+      s.dropping = false
+      s.can_drop = false
+      s.score += s.grabbed_block.score
+      s.pre_score = 0
+      s.grabbed_block.let_go!
+      s.block_drawer.drop!(s.grabbed_block)
+      s.grabbed_block = nil
+    end
+    check_scorable
+
+    level_up if s.score >= s.max_score
   end
 
   def clear_and_score
@@ -370,6 +395,27 @@ class Game
     return offset_rc
   end
 
+  def undo!
+    s.undoing = false
+    s.debug_str = "undo not supported yet!"
+    # old_state = s.undo_stack.pop
+    # These are the undoable properties
+    # s.grid           = old_state.grid
+    # s.block_drawer   = DrawerClassic.new(@args)
+    # s.grabbed_block  = nil
+    # # s.mouse_offset_x = 0
+    # # s.mouse_offset_y = 0
+    # s.dropping       = false
+    # s.can_drop       = false
+    # # s.conway_mode    = false
+    # # s.mode           = :classic
+    # s.mode_changing  = false
+    # s.score          = old_state.score
+    # s.pre_score      = old_state.pre_score
+    # s.max_score      = old_state.max_score
+    # s.flash_message  = nil
+  end
+
 
   def to_rc(p)
     [
@@ -386,11 +432,7 @@ class Game
     end
   end
 
-  def score_to_progress(i)
-    (PROGRESS_RECT[2].to_f * i / s.max_score).clamp(0, PROGRESS_RECT[2])
-  end
-
-  def  flash(message)
+  def flash(message)
     s.flash_message = [
       400,
       400,

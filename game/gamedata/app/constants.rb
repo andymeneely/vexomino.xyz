@@ -1,5 +1,5 @@
 SQUARE_SIZE = 50
-GAP = 2
+GAP = 1
 CELL_SIZE = SQUARE_SIZE + GAP
 HALF_CELL = CELL_SIZE / 2
 BLOCK_SIZE = (SQUARE_SIZE+GAP) * 3
@@ -17,16 +17,17 @@ PROGRESS_RECT = [
     9 * CELL_SIZE,
     10
 ]
+PROGRESS_BG = [220, 220, 220]
 SHADOW_START_RECT = [
     GRID_START_X - SQUARE_SIZE / 2,
     GRID_START_Y - SQUARE_SIZE / 2 ,
     (SQUARE_SIZE + GAP) * 10,
     (SQUARE_SIZE + GAP) * 10
 ]
+
 PALLETES = {
     classic: {
         empty:    [200, 200, 200],
-        empty2:   [150, 150, 150],
         overlap:  [100, 100, 100],
         filled:   [63, 55, 201],
         scorable: [67, 97, 238],
@@ -68,7 +69,6 @@ DRAWER_X = 50
 DRAWER_Y = 100
 PIECE_COORDS = [
     [ [0,0] ],
-    [ [0,0], [1,0] ],
     [ [0,0], [0,1] ],
     [ [0,0], [1,0] ],
     [ [0,0], [1,1] ],
@@ -89,4 +89,22 @@ CONWAY_MODE_TICKS = 5
 
 FLASH_FADE = 10
 
+BLOCK_BIRTHDAY_FADE = 15
+
 MAX_SCORE_DEFAULT = 100.0
+
+UNDO_BUTTON = {
+    x: 765,
+    y: 535,
+    w: 30,
+    h: 30,
+    path: 'sprites/undo.png',
+}
+
+SHUFFLE_BUTTON = {
+    x: DRAWER_X,
+    y: DRAWER_Y,
+    w: 30,
+    h: 30,
+    path: 'sprites/shuffle.png',
+}
