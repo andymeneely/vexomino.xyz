@@ -1,16 +1,17 @@
 require 'app/constants.rb'
 
 class Block
-  attr_accessor :x, :y, :blank
-  attr_reader :coords
+  attr_accessor :x, :y, :blank, :coords, :birthday, :possible
 
   def initialize(args, i)
     @args = args
     @x = DRAWER_X
-    @y = DRAWER_Y + i * (BLOCK_SIZE * 1.25)
+    @y = DRAWER_Y + i * (BLOCK_SIZE + DRAWER_GAP)
     @drawer_x = @x
     @drawer_y = @y
     @blank = false
+    @possible = true
+    @i = i
     another_one!
   end
 
@@ -20,15 +21,33 @@ class Block
     @birthday = @args.tick_count
   end
 
+  def dup 
+    b = Block.new(@args, @i)
+    b.coords = @coords
+    b.blank  = @blank
+    b.birthday = @birthday
+    return b
+  end
+
+  def save_for_undo
+    @undo_stack << {
+      coords: @coords,
+      blank: @blank,
+      birthday: @birthday
+    }
+  end
+
+  def undo!
+    u = @undo_stack.pop
+  end
+
+  # Bounding rectangle of a block
   def rect
-    rows = @coords.map {|(r,_c)| r }
-    cols = @coords.map {|(_r,c)| c }
-    return [
-      @x + cols.min * CELL_SIZE - GAP,
-      @y + rows.min * CELL_SIZE - GAP,
-      (cols.max - cols.min + 1) * CELL_SIZE + GAP,
-      (rows.max - rows.min + 1) * CELL_SIZE + GAP
-    ]
+    return [@x, @y, BLOCK_SIZE, BLOCK_SIZE]
+  end
+
+  def inside_rect?(rect)
+    [@x, @y].inside_rect?(rect)
   end
 
   def let_go!
@@ -37,7 +56,10 @@ class Block
   end
 
   def score
-    @coords.size * @coords.size
+    rows = @coords.map {|(r,_c)| r }
+    cols = @coords.map {|(_r,c)| c }
+    @coords.size * @coords.size +       # more cells
+    5 * (1 + rows.max) * (1 + cols.max) # wider blocks
   end
 
   def render
@@ -46,17 +68,18 @@ class Block
       shrink = 3*GAP
       if (@x == @drawer_x && @y == @drawer_y)
         shrink = 0
-        dragging = :filled
+        dragging = possible ? :filled : :empty
       end
-
-      @args.outputs.solids << {
+      
+      @args.outputs.primitives << {
+        primitive_marker: :solid,
         x: @x + c * (SQUARE_SIZE + GAP) + shrink,
         y: @y + r * (SQUARE_SIZE + GAP) + shrink,
         w: SQUARE_SIZE - 2 * shrink,
         h: SQUARE_SIZE - 2 * shrink,
-        r: @args.state.pallete[dragging][0],
-        g: @args.state.pallete[dragging][1],
-        b: @args.state.pallete[dragging][2],
+        r: @args.state.pallete[dragging][:r],
+        g: @args.state.pallete[dragging][:g],
+        b: @args.state.pallete[dragging][:b],
         a: eased_alpha
       }
     end

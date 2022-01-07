@@ -2,15 +2,6 @@ require 'app/constants.rb'
 
 class Menu
 
-  MENU_BUTTON = {
-    x: 950,
-    y: 475,
-    w: 200,
-    h: 75,
-  }
-
-  MENU_BUTTON_GAP = 25
-
   def initialize(args)
     @args = args
 
@@ -18,20 +9,13 @@ class Menu
       classic: "Classic",
       zen:     "Zen",
       journey: "Journey",
-      puzzle: "Puzzle",
+      # puzzle: "Puzzle",
     }
     @rects = {}
     @names.each.with_index do |(k, v),i|
-      @rects[k] = {
-        x: MENU_BUTTON.x,
-        y: MENU_BUTTON.y - i * (MENU_BUTTON.h + MENU_BUTTON_GAP),
-        w: MENU_BUTTON.w,
-        h: MENU_BUTTON.h,
-        r: PALLETES[:classic][:empty][0],
-        g: PALLETES[:classic][:empty][1],
-        b: PALLETES[:classic][:empty][2],
-        size_enum: 10,
-      }
+      @rects[k] = MENU_BUTTON
+        .merge(x: MENU_BUTTON.x  - i * (MENU_BUTTON.w + MENU_BUTTON.gap))
+        .merge(PALLETES[:classic][:empty])
     end
   end
 
@@ -64,31 +48,14 @@ class Menu
   end
 
   def render
-
-    empty = {
-      r: s.pallete[:empty][0],
-      g: s.pallete[:empty][1],
-      b: s.pallete[:empty][2]
-    }
-    filled = {
-      r: s.pallete[:filled][0],
-      g: s.pallete[:filled][1],
-      b: s.pallete[:filled][2]
-    }
-    overlap = {
-      r: s.pallete[:overlap][0],
-      g: s.pallete[:overlap][1],
-      b: s.pallete[:overlap][2]
-    }
-
     @rects.each do |(k,rect)|
-      fg_color = s.mode == k ? empty : overlap
-      bg_color = s.mode == k ? filled : empty
+      fg_color = s.mode == k ? s.pallete[:empty] : s.pallete[:overlap]
+      bg_color = s.mode == k ? s.pallete[:filled] : s.pallete[:empty]
       o.solids << rect.merge(bg_color)
       o.labels << rect.merge(fg_color).merge({
         text: @names[k],
-        # 0.8 is text baseline correction
-        y: rect.y + rect.h / 2 + MENU_BUTTON_GAP * 0.8,
+        # 0.9 is text baseline correction
+        y: rect.y + 0.9 * rect.h,
         x: rect.x + rect.w / 2,
         alignment_enum: 1
       })

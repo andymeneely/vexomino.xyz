@@ -16,8 +16,16 @@
 # ===============================================================
 
 # Remove the x from xrepl to run the code. Add the x back to ignore to code.
+xrepl do
+  a = Array.new(9) { |_i| Array.new(9, :empty) }
+  b = a.grid_dup
+  a[0][0] = :foo
+  puts a
+  puts b
+end
 
-repl do
+
+xrepl do
   3.times do
   grid = [
     [:empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty,  :empty, ],
